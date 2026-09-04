@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, ArrowUpRight, Check, Copy, Play, X } from "lucide-react";
 
 import {
@@ -24,9 +24,11 @@ function getVideoSource(url: string) {
     const host = parsed.hostname.replace(/^www\./, "");
 
     if (host === "youtu.be") {
+      const id = parsed.pathname.slice(1);
       return {
         kind: "embed" as const,
-        src: `https://www.youtube-nocookie.com/embed/${parsed.pathname.slice(1)}`,
+        src: `https://www.youtube-nocookie.com/embed/${id}`,
+        previewSrc: `https://i.ytimg.com/vi/${id}/maxresdefault.jpg`,
       };
     }
 
@@ -36,17 +38,27 @@ function getVideoSource(url: string) {
         return {
           kind: "embed" as const,
           src: `https://www.youtube-nocookie.com/embed/${id}`,
+          previewSrc: `https://i.ytimg.com/vi/${id}/maxresdefault.jpg`,
         };
       }
 
       if (parsed.pathname.startsWith("/embed/")) {
-        return { kind: "embed" as const, src: url };
+        const embedId = parsed.pathname.split("/")[2];
+        return {
+          kind: "embed" as const,
+          src: url,
+          previewSrc: embedId
+            ? `https://i.ytimg.com/vi/${embedId}/maxresdefault.jpg`
+            : undefined,
+        };
       }
 
       if (parsed.pathname.startsWith("/shorts/")) {
+        const shortsId = parsed.pathname.split("/")[2];
         return {
           kind: "embed" as const,
-          src: `https://www.youtube-nocookie.com/embed/${parsed.pathname.split("/")[2]}`,
+          src: `https://www.youtube-nocookie.com/embed/${shortsId}`,
+          previewSrc: `https://i.ytimg.com/vi/${shortsId}/maxresdefault.jpg`,
         };
       }
     }
@@ -56,13 +68,82 @@ function getVideoSource(url: string) {
       host.endsWith("vkvideo.ru") ||
       host.endsWith("vk.com")
     ) {
-      return { kind: "embed" as const, src: url };
+      return { kind: "embed" as const, src: url, previewSrc: undefined };
     }
   } catch {
     return { kind: "file" as const, src: url };
   }
 
   return { kind: "file" as const, src: url };
+}
+
+function ProjectPreview({ work }: { work: PortfolioWork }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const source = useMemo(() => getVideoSource(work.videoUrl ?? ""), [work.videoUrl]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || source?.kind !== "file") return;
+
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const connection = (
+      navigator as Navigator & { connection?: { saveData?: boolean } }
+    ).connection;
+
+    if (reduceMotion || connection?.saveData) return;
+
+    const loopShortPreview = () => {
+      if (video.currentTime >= 6) video.currentTime = 0;
+    };
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          void video.play().catch(() => undefined);
+        } else {
+          video.pause();
+        }
+      },
+      { rootMargin: "120px 0px", threshold: 0.25 },
+    );
+
+    video.addEventListener("timeupdate", loopShortPreview);
+    observer.observe(video);
+    return () => {
+      video.removeEventListener("timeupdate", loopShortPreview);
+      observer.disconnect();
+    };
+  }, [source]);
+
+  if (source?.kind === "file") {
+    return (
+      <video
+        ref={videoRef}
+        className="project-preview-media"
+        src={source.src}
+        poster={work.posterUrl || undefined}
+        muted
+        loop
+        playsInline
+        preload="metadata"
+        tabIndex={-1}
+        aria-hidden="true"
+      />
+    );
+  }
+
+  const previewSrc =
+    source?.kind === "embed" ? source.previewSrc || work.posterUrl : work.posterUrl;
+
+  if (!previewSrc) return null;
+
+  return (
+    <span
+      className="project-preview-media project-preview-image"
+      style={{ backgroundImage: `url(${JSON.stringify(previewSrc)})` }}
+      aria-hidden="true"
+    />
+  );
 }
 
 function ProjectVisual({
@@ -72,11 +153,15 @@ function ProjectVisual({
   work: PortfolioWork;
   compact?: boolean;
 }) {
+  const hasPreview = Boolean(work.videoUrl || work.posterUrl);
+
   return (
     <div
-      className={`project-visual project-visual-${work.tone}${compact ? " is-compact" : ""}`}
+      className={`project-visual project-visual-${work.tone}${compact ? " is-compact" : ""}${hasPreview ? " has-preview" : ""}`}
       aria-hidden="true"
     >
+      <ProjectPreview work={work} />
+      <div className="project-preview-vignette" />
       <div className="visual-glow visual-glow-one" />
       <div className="visual-glow visual-glow-two" />
       <div className="visual-scanline" />
@@ -93,6 +178,28 @@ function ProjectVisual({
       </div>
     </div>
   );
+}
+
+function scrollToSection(event: React.MouseEvent<HTMLAnchorElement>) {
+  const href = event.currentTarget.getAttribute("href");
+  if (!href?.startsWith("#")) return;
+
+  const target = document.getElementById(href.slice(1));
+  if (!target) return;
+
+  event.preventDefault();
+
+  const isTouch = window.matchMedia("(hover: none), (pointer: coarse)").matches;
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const topOffset = isTouch ? 20 : 80;
+  const top = target.getBoundingClientRect().top + window.scrollY - topOffset;
+
+  window.scrollTo({
+    top: Math.max(0, top),
+    behavior: isTouch || reduceMotion ? "auto" : "smooth",
+  });
+
+  if (isTouch) event.currentTarget.blur();
 }
 
 function ProjectMedia({ work }: { work: PortfolioWork }) {
@@ -136,7 +243,7 @@ function LiquidLink({
   className?: string;
 }) {
   return (
-    <a className={`liquid-link ${className}`} href={href}>
+    <a className={`liquid-link ${className}`} href={href} onClick={scrollToSection}>
       <span>{children}</span>
     </a>
   );
@@ -165,6 +272,8 @@ export default function Home() {
   }
 
   function trackPointer(event: React.PointerEvent<HTMLDivElement>) {
+    if (event.pointerType !== "mouse") return;
+
     event.currentTarget.style.setProperty("--pointer-x", `${event.clientX}px`);
     event.currentTarget.style.setProperty("--pointer-y", `${event.clientY}px`);
   }
@@ -181,7 +290,12 @@ export default function Home() {
       <div className="site-noise" aria-hidden="true" />
 
       <header className="site-header page-width">
-        <a className="brand" href="#top" aria-label="В начало страницы">
+        <a
+          className="brand"
+          href="#top"
+          aria-label="В начало страницы"
+          onClick={scrollToSection}
+        >
           <span>{siteContent.shortName}</span>
           <i>.</i>
         </a>
@@ -250,6 +364,7 @@ export default function Home() {
             className="scroll-cue"
             href={works.length ? "#works" : "#about"}
             aria-label={works.length ? "Прокрутить к работам" : "Прокрутить к информации"}
+            onClick={scrollToSection}
           >
             <span>листай</span>
             <ArrowDown aria-hidden="true" />
@@ -360,7 +475,9 @@ export default function Home() {
 
       <footer className="site-footer page-width">
         <span>© 2026 {siteContent.name}</span>
-        <a href="#top">Наверх</a>
+        <a href="#top" onClick={scrollToSection}>
+          Наверх
+        </a>
       </footer>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
