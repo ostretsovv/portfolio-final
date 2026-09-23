@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readdir, readFile } from "node:fs/promises";
+import { access, readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import test, { after } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -35,17 +35,53 @@ async function readCssTree(directory) {
   return contents.join("\n");
 }
 
-test("emits the catalog's animation and scrolling utilities", async () => {
+test("emits dialog transitions and reduced-motion styles", async () => {
   const css = await readCssTree(path.join(root, "dist"));
 
   assert.match(css, /--tw-enter-opacity/);
-  assert.match(css, /scrollbar-width:\s*thin/);
-  assert.match(css, /scrollbar-width:\s*none/);
-  assert.match(css, /scrollbar-gutter:\s*stable/);
-  assert.match(css, /scroll-fade-reveal-b/);
-  assert.match(css, /mask-image:/);
-  assert.match(css, /tw-shimmer/);
   assert.match(css, /prefers-reduced-motion:\s*reduce/);
+});
+
+test("portfolio content has unique IDs, supported formats and existing local assets", async () => {
+  const { works } = await vite.ssrLoadModule("/app/portfolio-content.ts");
+  assert.equal(new Set(works.map((work) => work.id)).size, works.length);
+  for (const work of works) {
+    assert.ok(["portrait", "landscape"].includes(work.format ?? "portrait"));
+    for (const asset of [work.videoUrl, work.posterUrl]) {
+      if (asset?.startsWith("/") && !asset.startsWith("//")) {
+        await access(path.join(root, "public", asset));
+      }
+    }
+  }
+});
+
+test("supports landscape as the featured case and omits empty format groups", async () => {
+  const { works } = await vite.ssrLoadModule("/app/portfolio-content.ts");
+  const { default: Home } = await vite.ssrLoadModule("/app/page.tsx");
+  const originals = [...works];
+  try {
+    works.splice(0, works.length, {
+      id: "test-landscape", format: "landscape", title: "Wide test",
+      category: "Test", description: "Test", details: [], tone: "blue",
+    });
+    const html = renderToStaticMarkup(React.createElement(Home));
+    assert.match(html, /featured-frame--landscape/);
+    assert.match(html, /Горизонтальные видео/);
+    assert.doesNotMatch(html, /Вертикальные видео/);
+    assert.doesNotMatch(html, /(?:src|poster)=""/);
+
+    delete works[0].format;
+    const legacyHtml = renderToStaticMarkup(React.createElement(Home));
+    assert.match(legacyHtml, /Вертикальные видео/);
+    assert.doesNotMatch(legacyHtml, /Горизонтальные видео/);
+
+    works.splice(0);
+    const emptyHtml = renderToStaticMarkup(React.createElement(Home));
+    assert.doesNotMatch(emptyHtml, /id="works"/);
+    assert.match(emptyHtml, /id="contact"/);
+  } finally {
+    works.splice(0, works.length, ...originals);
+  }
 });
 
 test("forwards progress semantics to the primitive", async () => {

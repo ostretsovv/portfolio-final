@@ -77,13 +77,17 @@ function getVideoSource(url: string) {
   return { kind: "file" as const, src: url };
 }
 
-function ProjectPreview({ work }: { work: PortfolioWork }) {
+function ProjectPreview({ work, active }: { work: PortfolioWork; active: boolean }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const source = useMemo(() => getVideoSource(work.videoUrl ?? ""), [work.videoUrl]);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video || source?.kind !== "file") return;
+    if (!active) {
+      video.pause();
+      return;
+    }
 
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const connection = (
@@ -96,36 +100,46 @@ function ProjectPreview({ work }: { work: PortfolioWork }) {
       if (video.currentTime >= 6) video.currentTime = 0;
     };
 
+    let visible = false;
+    const updatePlayback = () => {
+      if (visible && !document.hidden) {
+        // Не загружаем все полные ролики сразу при открытии портфолио.
+        if (!video.getAttribute("src")) video.src = source.src;
+        void video.play().catch(() => undefined);
+      } else {
+        video.pause();
+      }
+    };
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) {
-          void video.play().catch(() => undefined);
-        } else {
-          video.pause();
-        }
+        visible = entry.isIntersecting;
+        updatePlayback();
       },
-      { rootMargin: "120px 0px", threshold: 0.25 },
+      { threshold: 0.25 },
     );
 
     video.addEventListener("timeupdate", loopShortPreview);
+    document.addEventListener("visibilitychange", updatePlayback);
     observer.observe(video);
     return () => {
       video.removeEventListener("timeupdate", loopShortPreview);
+      document.removeEventListener("visibilitychange", updatePlayback);
       observer.disconnect();
+      video.pause();
     };
-  }, [source]);
+  }, [source, active]);
 
   if (source?.kind === "file") {
     return (
       <video
+        key={source.src}
         ref={videoRef}
         className="project-preview-media"
-        src={source.src}
         poster={work.posterUrl || undefined}
         muted
         loop
         playsInline
-        preload="metadata"
+        preload="none"
         tabIndex={-1}
         aria-hidden="true"
       />
@@ -133,7 +147,7 @@ function ProjectPreview({ work }: { work: PortfolioWork }) {
   }
 
   const previewSrc =
-    source?.kind === "embed" ? source.previewSrc || work.posterUrl : work.posterUrl;
+    work.posterUrl || (source?.kind === "embed" ? source.previewSrc : undefined);
 
   if (!previewSrc) return null;
 
@@ -149,18 +163,20 @@ function ProjectPreview({ work }: { work: PortfolioWork }) {
 function ProjectVisual({
   work,
   compact = false,
+  active = true,
 }: {
   work: PortfolioWork;
   compact?: boolean;
+  active?: boolean;
 }) {
   const hasPreview = Boolean(work.videoUrl || work.posterUrl);
 
   return (
     <div
-      className={`project-visual project-visual-${work.tone}${compact ? " is-compact" : ""}${hasPreview ? " has-preview" : ""}`}
+      className={`project-visual project-visual-${work.tone} project-visual--${work.format ?? "portrait"}${compact ? " is-compact" : ""}${hasPreview ? " has-preview" : ""}`}
       aria-hidden="true"
     >
-      <ProjectPreview work={work} />
+      <ProjectPreview work={work} active={active} />
       <div className="project-preview-vignette" />
       <div className="visual-glow visual-glow-one" />
       <div className="visual-glow visual-glow-two" />
@@ -205,7 +221,17 @@ function scrollToSection(event: React.MouseEvent<HTMLAnchorElement>) {
 function ProjectMedia({ work }: { work: PortfolioWork }) {
   const source = useMemo(() => getVideoSource(work.videoUrl ?? ""), [work.videoUrl]);
 
-  if (!source) return <ProjectVisual work={work} />;
+  if (!source) {
+    return (
+      <>
+        <ProjectVisual work={work} active={false} />
+        <div className="project-empty">
+          <span>Видео скоро</span>
+          <small>{work.format === "landscape" ? "16:9" : "9:16"}</small>
+        </div>
+      </>
+    );
+  }
 
   if (source.kind === "embed") {
     return (
@@ -254,10 +280,19 @@ export default function Home() {
   const [selectedWork, setSelectedWork] = useState<PortfolioWork | null>(firstWork);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const openerRef = useRef<HTMLButtonElement | null>(null);
+  const workGroups = [
+    { format: "portrait", title: "Вертикальные видео", ratio: "9:16" },
+    { format: "landscape", title: "Горизонтальные видео", ratio: "16:9" },
+  ].map((group) => ({
+    ...group,
+    items: works.filter((work) => (work.format ?? "portrait") === group.format),
+  }));
   const hasTelegram = Boolean(siteContent.telegramUrl);
   const hasEmail = Boolean(siteContent.email);
 
-  function openWork(work: PortfolioWork) {
+  function openWork(work: PortfolioWork, opener: HTMLButtonElement) {
+    openerRef.current = opener;
     setSelectedWork(work);
     setDialogOpen(true);
   }
@@ -340,19 +375,19 @@ export default function Home() {
 
           {firstWork && (
             <button
-              className="featured-frame glass-panel"
+              className={`featured-frame featured-frame--${firstWork.format ?? "portrait"} glass-panel`}
               type="button"
-              onClick={() => openWork(firstWork)}
+              onClick={(event) => openWork(firstWork, event.currentTarget)}
               aria-label={`Открыть ${firstWork.title}`}
             >
-              <ProjectVisual work={firstWork} />
+              <ProjectVisual work={firstWork} active={!dialogOpen} />
               <span className="featured-tag">
-                Reel
+                {firstWork.format === "landscape" ? "Видео" : "Reel"}
                 {firstWork.duration ? ` · ${firstWork.duration}` : ""}
               </span>
-              <span className="featured-play">
+              {firstWork.videoUrl ? <span className="featured-play">
                 <Play fill="currentColor" aria-hidden="true" />
-              </span>
+              </span> : <span className="work-card-status">Скоро</span>}
               <span className="featured-caption">
                 <small>Избранная работа</small>
                 <strong>{firstWork.title}</strong>
@@ -381,33 +416,41 @@ export default function Home() {
             <p>Каждый проект открывается в отдельном просмотре.</p>
           </div>
 
-          <div
-            className={`works-grid works-count-${Math.min(works.length, 4)}`}
-            aria-label="Список работ"
-          >
-            {works.map((work, index) => (
+          {workGroups.filter((group) => group.items.length > 0).map((group) => (
+          <div className="work-group" key={group.format}>
+            <div className="work-group-heading">
+              <h3 id={`works-${group.format}`}>{group.title}</h3>
+              <span>{group.ratio}</span>
+            </div>
+            <div
+              className={`works-grid works-grid--${group.format} works-count-${Math.min(group.items.length, 4)}`}
+              aria-labelledby={`works-${group.format}`}
+            >
+            {group.items.map((work, index) => (
               <button
-                className="work-card glass-panel"
+                className={`work-card work-card--${group.format} glass-panel`}
                 type="button"
                 key={work.id}
-                onClick={() => openWork(work)}
+                onClick={(event) => openWork(work, event.currentTarget)}
                 aria-label={`Открыть работу ${work.title}`}
               >
-                <ProjectVisual work={work} compact />
+                <ProjectVisual work={work} compact active={!dialogOpen} />
                 <span className="work-card-topline">
-                  <span>0{index + 1}</span>
+                  <span>{String(index + 1).padStart(2, "0")}</span>
                   <ArrowUpRight aria-hidden="true" />
                 </span>
-                <span className="work-card-play">
+                {work.videoUrl ? <span className="work-card-play">
                   <Play fill="currentColor" aria-hidden="true" />
-                </span>
+                </span> : <span className="work-card-status">Скоро</span>}
                 <span className="work-card-copy">
                   <strong>{work.title}</strong>
                   <small>{work.category}</small>
                 </span>
               </button>
             ))}
+            </div>
           </div>
+          ))}
         </section>
         )}
 
@@ -482,24 +525,33 @@ export default function Home() {
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         {selectedWork && (
-        <DialogContent className="project-dialog" showCloseButton={false}>
+        <DialogContent
+          className={`project-dialog project-dialog--${selectedWork.format ?? "portrait"}`}
+          showCloseButton={false}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            openerRef.current?.focus({ preventScroll: true });
+          }}
+        >
           <DialogClose className="dialog-close" aria-label="Закрыть просмотр">
             <X aria-hidden="true" />
           </DialogClose>
 
+          <div className="dialog-body">
           <div className="dialog-media">
-            <ProjectMedia work={selectedWork} />
+            <ProjectMedia key={selectedWork.id} work={selectedWork} />
           </div>
 
           <div className="dialog-copy">
             <p className="section-index">{selectedWork.category}</p>
             <DialogTitle>{selectedWork.title}</DialogTitle>
             <DialogDescription>{selectedWork.description}</DialogDescription>
-            <div className="detail-list">
+            {selectedWork.details.length > 0 && <div className="detail-list">
               {selectedWork.details.map((detail) => (
                 <span key={detail}>{detail}</span>
               ))}
-            </div>
+            </div>}
+          </div>
           </div>
         </DialogContent>
         )}

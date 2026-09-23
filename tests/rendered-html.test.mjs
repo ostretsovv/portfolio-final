@@ -1,33 +1,20 @@
 import assert from "node:assert/strict";
+import { readFile, access } from "node:fs/promises";
 import test from "node:test";
 
-const developmentPreviewMeta =
-  /<meta(?=[^>]*\bname=["']codex-preview["'])(?=[^>]*\bcontent=["']development["'])[^>]*>/i;
+const root = new URL("../dist/client/", import.meta.url);
 
-test("renders development preview metadata", async () => {
-  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
-  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
-  const { default: worker } = await import(workerUrl.href);
+test("exports a Russian portfolio that renders before JavaScript loads", async () => {
+  const html = await readFile(new URL("index.html", root), "utf8");
+  assert.match(html, /<html lang="ru"/);
+  assert.match(html, /<h1\b[^>]*id="hero-title"/);
+  assert.match(html, /id="works"/);
+  assert.match(html, /id="contact"/);
+  assert.doesNotMatch(html, /(?:src|poster)=""/);
 
-  const response = await worker.fetch(
-    new Request("http://localhost/", {
-      headers: { accept: "text/html" },
-    }),
-    {
-      ASSETS: {
-        fetch: async () => new Response("Not found", { status: 404 }),
-      },
-    },
-    {
-      waitUntil() {},
-      passThroughOnException() {},
-    },
-  );
-
-  assert.equal(response.status, 200);
-  assert.match(
-    response.headers.get("content-type") ?? "",
-    /^text\/html\b/i,
-  );
-  assert.match(await response.text(), developmentPreviewMeta);
+  // Проверяем реальные ссылки в готовой странице, включая пользовательские обложки.
+  const assets = [...html.matchAll(/(?:src|poster|href)="(\/(?:assets|posters|videos)\/[^"?]+)(?:\?[^"<]*)?"/g)];
+  for (const [, asset] of assets) {
+    await access(new URL(asset.slice(1), root));
+  }
 });
