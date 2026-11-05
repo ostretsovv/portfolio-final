@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
+import { siteContent } from "./portfolio-content";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Виктор Острецов | Видеомонтаж",
-  description:
-    "Портфолио видеомонтажёра Виктора Острецова. Reels, Shorts, рекламные ролики, субтитры и саунд-дизайн.",
+  title: siteContent.metadataTitle,
+  description: siteContent.metadataDescription,
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",

@@ -10,11 +10,14 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   siteContent,
   works,
   type PortfolioWork,
 } from "./portfolio-content";
+import { interfaceText, type InterfaceText } from "./portfolio-i18n";
+import { usePortfolioLanguage } from "./use-portfolio-language";
 
 function getVideoSource(url: string) {
   if (!url) return null;
@@ -178,20 +181,12 @@ function ProjectVisual({
     >
       <ProjectPreview work={work} active={active} />
       <div className="project-preview-vignette" />
-      <div className="visual-glow visual-glow-one" />
-      <div className="visual-glow visual-glow-two" />
-      <div className="visual-scanline" />
-      <div className="visual-copy">
-        <span>EDIT</span>
-        <strong>{work.id === "work-01" ? "RHYTHM" : "MOTION"}</strong>
-        <span>{work.id === "work-01" ? "SOUND" : "STORY"}</span>
-      </div>
-      <div className="visual-timeline">
-        <i />
-        <i />
-        <i />
-        <i />
-      </div>
+      {!hasPreview && (
+        <>
+          <div className="visual-glow visual-glow-one" />
+          <div className="visual-glow visual-glow-two" />
+        </>
+      )}
     </div>
   );
 }
@@ -218,7 +213,7 @@ function scrollToSection(event: React.MouseEvent<HTMLAnchorElement>) {
   if (isTouch) event.currentTarget.blur();
 }
 
-function ProjectMedia({ work }: { work: PortfolioWork }) {
+function ProjectMedia({ work, labels }: { work: PortfolioWork; labels: InterfaceText }) {
   const source = useMemo(() => getVideoSource(work.videoUrl ?? ""), [work.videoUrl]);
 
   if (!source) {
@@ -226,7 +221,7 @@ function ProjectMedia({ work }: { work: PortfolioWork }) {
       <>
         <ProjectVisual work={work} active={false} />
         <div className="project-empty">
-          <span>Видео скоро</span>
+          <span>{labels.videoSoon}</span>
           <small>{work.format === "landscape" ? "16:9" : "9:16"}</small>
         </div>
       </>
@@ -254,7 +249,7 @@ function ProjectMedia({ work }: { work: PortfolioWork }) {
       playsInline
       preload="metadata"
     >
-      Ваш браузер не поддерживает видео.
+      {labels.videoUnsupported}
     </video>
   );
 }
@@ -276,34 +271,57 @@ function LiquidLink({
 }
 
 export default function Home() {
-  const firstWork = works[0] ?? null;
-  const [selectedWork, setSelectedWork] = useState<PortfolioWork | null>(firstWork);
+  const [language, setLanguage] = usePortfolioLanguage();
+  const labels = interfaceText[language];
+  const content = language === "en" ? { ...siteContent, ...siteContent.en } : siteContent;
+  const localizedWorks = useMemo(
+    () => works.map((work) => language === "en" && work.en ? { ...work, ...work.en } : work),
+    [language],
+  );
+  const firstWork = localizedWorks[0] ?? null;
+  const [selectedWorkId, setSelectedWorkId] = useState<string | null>(works[0]?.id ?? null);
+  const selectedWork = localizedWorks.find((work) => work.id === selectedWorkId) ?? null;
   const [dialogOpen, setDialogOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
   const openerRef = useRef<HTMLButtonElement | null>(null);
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const workGroups = [
-    { format: "portrait", title: "Вертикальные видео", ratio: "9:16" },
-    { format: "landscape", title: "Горизонтальные видео", ratio: "16:9" },
+    { format: "portrait", title: labels.vertical, ratio: "9:16" },
+    { format: "landscape", title: labels.landscape, ratio: "16:9" },
   ].map((group) => ({
     ...group,
-    items: works.filter((work) => (work.format ?? "portrait") === group.format),
+    items: localizedWorks.filter((work) => (work.format ?? "portrait") === group.format),
   }));
   const hasTelegram = Boolean(siteContent.telegramUrl);
   const hasEmail = Boolean(siteContent.email);
 
+  useEffect(() => {
+    document.documentElement.lang = language;
+    document.title = content.metadataTitle;
+    document.querySelector('meta[name="description"]')?.setAttribute("content", content.metadataDescription);
+  }, [language, content.metadataTitle, content.metadataDescription]);
+
+  useEffect(() => () => {
+    if (copyTimer.current) clearTimeout(copyTimer.current);
+  }, []);
+
   function openWork(work: PortfolioWork, opener: HTMLButtonElement) {
     openerRef.current = opener;
-    setSelectedWork(work);
+    setSelectedWorkId(work.id);
     setDialogOpen(true);
   }
 
   async function copyBrief() {
-    const message =
-      "Привет! Хочу обсудить монтаж. Формат ролика: ... Хронометраж: ... Срок: ...";
-
-    await navigator.clipboard.writeText(message);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1800);
+    setCopyFailed(false);
+    try {
+      await navigator.clipboard.writeText(labels.brief);
+      setCopied(true);
+      if (copyTimer.current) clearTimeout(copyTimer.current);
+      copyTimer.current = setTimeout(() => setCopied(false), 1800);
+    } catch {
+      setCopyFailed(true);
+    }
   }
 
   function trackPointer(event: React.PointerEvent<HTMLDivElement>) {
@@ -316,7 +334,7 @@ export default function Home() {
   return (
     <div className="site-shell" onPointerMove={trackPointer}>
       <a className="skip-link" href={works.length ? "#works" : "#about"}>
-        {works.length ? "Перейти к работам" : "Перейти к информации"}
+        {works.length ? labels.skipWorks : labels.skipAbout}
       </a>
 
       <div className="ambient ambient-violet" aria-hidden="true" />
@@ -328,18 +346,33 @@ export default function Home() {
         <a
           className="brand"
           href="#top"
-          aria-label="В начало страницы"
+          aria-label={labels.backToTop}
           onClick={scrollToSection}
         >
-          <span>{siteContent.shortName}</span>
+          <span>{content.shortName}</span>
           <i>.</i>
         </a>
 
-        <nav className="main-nav" aria-label="Основная навигация">
-          {works.length > 0 && <LiquidLink href="#works">работы</LiquidLink>}
-          <LiquidLink href="#about">обо мне</LiquidLink>
-          <LiquidLink href="#contact">связаться</LiquidLink>
-        </nav>
+        <div className="header-controls">
+          <nav className="main-nav" aria-label={labels.navigation}>
+            {works.length > 0 && <LiquidLink href="#works">{labels.navWorks}</LiquidLink>}
+            <LiquidLink href="#about">{labels.navAbout}</LiquidLink>
+            <LiquidLink href="#contact">{labels.navContact}</LiquidLink>
+          </nav>
+          <ToggleGroup
+            className="language-switch"
+            type="single"
+            value={language}
+            onValueChange={(value) => {
+              if (value === "ru" || value === "en") setLanguage(value);
+              else if (value === "") setLanguage(language);
+            }}
+            aria-label={labels.language}
+          >
+            <ToggleGroupItem value="ru" aria-label="Русский" lang="ru">RU</ToggleGroupItem>
+            <ToggleGroupItem value="en" aria-label="English" lang="en">EN</ToggleGroupItem>
+          </ToggleGroup>
+        </div>
       </header>
 
       <main id="top">
@@ -350,24 +383,24 @@ export default function Home() {
           <div className="hero-copy">
             <p className="eyebrow">
               <span className="status-dot" />
-              {siteContent.role}
+              {content.role}
             </p>
             <h1 id="hero-title">
-              Монтаж, который
-              <span>держит внимание</span>
+              {content.headlineLead}
+              <span>{content.headlineAccent}</span>
             </h1>
-            <p className="hero-intro">{siteContent.intro}</p>
+            <p className="hero-intro">{content.intro}</p>
 
             <div className="hero-actions">
               <LiquidLink
                 href={works.length ? "#works" : "#about"}
                 className="button button-primary"
               >
-                {works.length ? "Смотреть работы" : "Обо мне"}
+                {works.length ? labels.viewWorks : labels.about}
                 <ArrowDown aria-hidden="true" />
               </LiquidLink>
               <LiquidLink href="#contact" className="button button-secondary">
-                Обсудить проект
+                {labels.discussProject}
                 <ArrowUpRight aria-hidden="true" />
               </LiquidLink>
             </div>
@@ -378,18 +411,18 @@ export default function Home() {
               className={`featured-frame featured-frame--${firstWork.format ?? "portrait"} glass-panel`}
               type="button"
               onClick={(event) => openWork(firstWork, event.currentTarget)}
-              aria-label={`Открыть ${firstWork.title}`}
+              aria-label={`${labels.openProject}: ${firstWork.title}`}
             >
               <ProjectVisual work={firstWork} active={!dialogOpen} />
               <span className="featured-tag">
-                {firstWork.format === "landscape" ? "Видео" : "Reel"}
+                {firstWork.format === "landscape" ? labels.video : "Reel"}
                 {firstWork.duration ? ` · ${firstWork.duration}` : ""}
               </span>
               {firstWork.videoUrl ? <span className="featured-play">
                 <Play fill="currentColor" aria-hidden="true" />
-              </span> : <span className="work-card-status">Скоро</span>}
+              </span> : <span className="work-card-status">{labels.soon}</span>}
               <span className="featured-caption">
-                <small>Избранная работа</small>
+                <small>{labels.featured}</small>
                 <strong>{firstWork.title}</strong>
               </span>
             </button>
@@ -398,10 +431,10 @@ export default function Home() {
           <a
             className="scroll-cue"
             href={works.length ? "#works" : "#about"}
-            aria-label={works.length ? "Прокрутить к работам" : "Прокрутить к информации"}
+            aria-label={works.length ? labels.scrollWorks : labels.scrollAbout}
             onClick={scrollToSection}
           >
-            <span>листай</span>
+            <span>{labels.scroll}</span>
             <ArrowDown aria-hidden="true" />
           </a>
         </section>
@@ -410,10 +443,10 @@ export default function Home() {
         <section className="works-section page-width" id="works" aria-labelledby="works-title">
           <div className="section-heading">
             <div>
-              <p className="section-index">01 · Портфолио</p>
-              <h2 id="works-title">Работы</h2>
+              <p className="section-index">01 · {labels.portfolio}</p>
+              <h2 id="works-title">{labels.works}</h2>
             </div>
-            <p>Каждый проект открывается в отдельном просмотре.</p>
+            <p>{labels.worksHint}</p>
           </div>
 
           {workGroups.filter((group) => group.items.length > 0).map((group) => (
@@ -432,7 +465,7 @@ export default function Home() {
                 type="button"
                 key={work.id}
                 onClick={(event) => openWork(work, event.currentTarget)}
-                aria-label={`Открыть работу ${work.title}`}
+                aria-label={`${labels.openProject}: ${work.title}`}
               >
                 <ProjectVisual work={work} compact active={!dialogOpen} />
                 <span className="work-card-topline">
@@ -441,7 +474,7 @@ export default function Home() {
                 </span>
                 {work.videoUrl ? <span className="work-card-play">
                   <Play fill="currentColor" aria-hidden="true" />
-                </span> : <span className="work-card-status">Скоро</span>}
+                </span> : <span className="work-card-status">{labels.soon}</span>}
                 <span className="work-card-copy">
                   <strong>{work.title}</strong>
                   <small>{work.category}</small>
@@ -459,25 +492,23 @@ export default function Home() {
             02
           </div>
           <div className="about-copy">
-            <p className="section-index">02 · Обо мне</p>
-            <h2 id="about-title">Собираю видео вокруг смысла и ритма.</h2>
-            <p>{siteContent.about}</p>
+            <p className="section-index">02 · {labels.about}</p>
+            <h2 id="about-title">{content.aboutTitle}</h2>
+            <p>{content.about}</p>
           </div>
-          <div className="about-skills glass-panel" aria-label="Направления работы">
-            <span>Reels и Shorts</span>
-            <span>Субтитры</span>
-            <span>Саунд-дизайн</span>
-            <span>Motion</span>
-            <span>Цвет</span>
-          </div>
+          <ul className="about-skills about-benefits glass-panel" aria-label={labels.benefits}>
+            {content.benefits.map((benefit) => (
+              <li key={benefit}><Check aria-hidden="true" /><span>{benefit}</span></li>
+            ))}
+          </ul>
         </section>
 
         <section className="contact-section page-width" id="contact" aria-labelledby="contact-title">
           <div className="contact-card glass-panel">
             <div>
-              <p className="section-index">03 · Связаться</p>
-              <h2 id="contact-title">Есть задача по монтажу?</h2>
-              <p>{siteContent.contactText}</p>
+              <p className="section-index">03 · {labels.contact}</p>
+              <h2 id="contact-title">{content.contactTitle}</h2>
+              <p>{content.contactText}</p>
             </div>
 
             <div className="contact-actions">
@@ -489,7 +520,7 @@ export default function Home() {
                   rel="noreferrer"
                 >
                   <span>
-                    Написать в Telegram
+                    {content.telegramLabel}
                     <ArrowUpRight aria-hidden="true" />
                   </span>
                 </a>
@@ -500,26 +531,29 @@ export default function Home() {
                   href={`mailto:${siteContent.email}`}
                 >
                   <span>
-                    Написать на почту
+                    {labels.email}
                     <ArrowUpRight aria-hidden="true" />
                   </span>
                 </a>
               )}
               {!hasTelegram && !hasEmail && (
-                <button className="button button-primary copy-button" type="button" onClick={copyBrief}>
-                  {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
-                  {copied ? "Текст скопирован" : "Скопировать текст для сообщения"}
+                <button className="button button-primary copy-button liquid-link" type="button" onClick={copyBrief}>
+                  <span>
+                    {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
+                    {copied ? labels.copied : labels.copy}
+                  </span>
                 </button>
               )}
+              {copyFailed && <p className="copy-status" role="status">{labels.copyError}</p>}
             </div>
           </div>
         </section>
       </main>
 
       <footer className="site-footer page-width">
-        <span>© 2026 {siteContent.name}</span>
+        <span>© 2026 {content.name}</span>
         <a href="#top" onClick={scrollToSection}>
-          Наверх
+          {labels.top}
         </a>
       </footer>
 
@@ -533,13 +567,13 @@ export default function Home() {
             openerRef.current?.focus({ preventScroll: true });
           }}
         >
-          <DialogClose className="dialog-close" aria-label="Закрыть просмотр">
+          <DialogClose className="dialog-close" aria-label={labels.close}>
             <X aria-hidden="true" />
           </DialogClose>
 
           <div className="dialog-body">
           <div className="dialog-media">
-            <ProjectMedia key={selectedWork.id} work={selectedWork} />
+            <ProjectMedia key={selectedWork.id} work={selectedWork} labels={labels} />
           </div>
 
           <div className="dialog-copy">
