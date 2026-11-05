@@ -29,8 +29,6 @@
   --lavender-bright: #aeb4ff;
   --sand: #f0c88b;
   --surface: rgba(255, 255, 255, 0.055);
-  --pointer-x: 50vw;
-  --pointer-y: 24vh;
 }
 
 @theme inline {
@@ -121,42 +119,54 @@ a {
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.78' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='.2'/%3E%3C/svg%3E");
 }
 
-.ambient {
-  position: fixed;
-  z-index: -2;
-  border-radius: 50%;
-  filter: blur(92px);
-  pointer-events: none;
-  animation: ambient-drift 15s ease-in-out infinite alternate;
-}
-
-.ambient-violet {
-  top: -13rem;
-  right: -9rem;
-  width: 35rem;
-  height: 35rem;
-  background: rgba(139, 147, 240, 0.27);
-}
-
-.ambient-sand {
-  bottom: 9%;
-  left: -13rem;
-  width: 30rem;
-  height: 30rem;
-  background: rgba(240, 200, 139, 0.14);
-  animation-delay: -6s;
-}
-
-.pointer-light {
+.scroll-backdrop {
   position: fixed;
   inset: 0;
-  z-index: -1;
+  z-index: -2;
+  overflow: hidden;
+  contain: strict;
   pointer-events: none;
-  background: radial-gradient(
-    30rem circle at var(--pointer-x) var(--pointer-y),
-    rgba(139, 147, 240, 0.08),
-    transparent 70%
-  );
+}
+
+.scroll-backdrop-glow {
+  position: absolute;
+  top: -16%;
+  right: -12%;
+  width: min(88vw, 52rem);
+  aspect-ratio: 1;
+  opacity: 0.72;
+  background:
+    radial-gradient(ellipse at 40% 38%, rgba(139, 147, 240, 0.4), transparent 58%),
+    radial-gradient(ellipse at 74% 68%, rgba(240, 200, 139, 0.2), transparent 48%);
+  transform-origin: 60% 55%;
+}
+
+.scroll-backdrop-orbit {
+  position: absolute;
+  right: -10%;
+  bottom: -8%;
+  width: min(84vw, 54rem);
+  aspect-ratio: 1;
+  color: #aeb4ff;
+  opacity: 0.18;
+  transform: rotate(-18deg) scale(1.05);
+}
+
+.scroll-backdrop-orbit svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  stroke: currentColor;
+  stroke-width: 0.8;
+}
+
+.scroll-backdrop-orbit circle {
+  fill: currentColor;
+  stroke: none;
+}
+
+.scroll-backdrop[data-motion="on"] > div {
+  will-change: transform, opacity;
 }
 
 .page-width {
@@ -1244,12 +1254,6 @@ button:focus-visible {
   }
 }
 
-@keyframes ambient-drift {
-  to {
-    transform: translate3d(4rem, 2.5rem, 0) scale(1.08);
-  }
-}
-
 @keyframes status-pulse {
   70% {
     box-shadow: 0 0 0 0.55rem rgba(174, 180, 255, 0);
@@ -1473,7 +1477,7 @@ button:focus-visible {
   }
 }
 
-/* Горизонтальные кейсы сохраняют полную ширину кадра. */
+/* Превью заполняет карточку, полный кадр доступен в просмотре. */
 .works-grid--landscape {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   max-width: none;
@@ -1494,9 +1498,13 @@ button:focus-visible {
 }
 
 .project-visual--landscape .project-preview-media {
-  object-fit: contain;
-  background-size: contain;
+  object-fit: cover;
+  background-size: cover;
   background-repeat: no-repeat;
+}
+
+.work-card--landscape .project-visual {
+  inset: -1px;
 }
 
 .work-card--landscape:hover .project-visual,
@@ -1555,17 +1563,19 @@ button:focus-visible {
     display: none;
   }
 
-  .site-noise,
-  .ambient {
+  .site-noise {
     position: absolute;
   }
 
-  .ambient {
-    animation: none;
+  .scroll-backdrop-glow {
+    width: min(125vw, 32rem);
+    right: -40%;
+    opacity: 0.55;
   }
 
-  .pointer-light {
-    display: none;
+  .scroll-backdrop-orbit {
+    width: min(112vw, 30rem);
+    right: -34%;
   }
 
   .work-card-play {

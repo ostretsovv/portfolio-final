@@ -18,6 +18,7 @@ import {
 } from "./portfolio-content";
 import { interfaceText, type InterfaceText } from "./portfolio-i18n";
 import { usePortfolioLanguage } from "./use-portfolio-language";
+import { ScrollBackdrop } from "./scroll-backdrop";
 
 function getVideoSource(url: string) {
   if (!url) return null;
@@ -278,7 +279,8 @@ export default function Home() {
     () => works.map((work) => language === "en" && work.en ? { ...work, ...work.en } : work),
     [language],
   );
-  const firstWork = localizedWorks[0] ?? null;
+  const featuredWork = localizedWorks.find((work) => work.id === siteContent.featuredWorkId)
+    ?? localizedWorks[0] ?? null;
   const [selectedWorkId, setSelectedWorkId] = useState<string | null>(works[0]?.id ?? null);
   const selectedWork = localizedWorks.find((work) => work.id === selectedWorkId) ?? null;
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -324,22 +326,13 @@ export default function Home() {
     }
   }
 
-  function trackPointer(event: React.PointerEvent<HTMLDivElement>) {
-    if (event.pointerType !== "mouse") return;
-
-    event.currentTarget.style.setProperty("--pointer-x", `${event.clientX}px`);
-    event.currentTarget.style.setProperty("--pointer-y", `${event.clientY}px`);
-  }
-
   return (
-    <div className="site-shell" onPointerMove={trackPointer}>
+    <div className="site-shell">
       <a className="skip-link" href={works.length ? "#works" : "#about"}>
         {works.length ? labels.skipWorks : labels.skipAbout}
       </a>
 
-      <div className="ambient ambient-violet" aria-hidden="true" />
-      <div className="ambient ambient-sand" aria-hidden="true" />
-      <div className="pointer-light" aria-hidden="true" />
+      <ScrollBackdrop paused={dialogOpen} />
       <div className="site-noise" aria-hidden="true" />
 
       <header className="site-header page-width">
@@ -377,7 +370,7 @@ export default function Home() {
 
       <main id="top">
         <section
-          className={`hero page-width${firstWork ? "" : " hero-no-work"}`}
+          className={`hero page-width${featuredWork ? "" : " hero-no-work"}`}
           aria-labelledby="hero-title"
         >
           <div className="hero-copy">
@@ -406,24 +399,24 @@ export default function Home() {
             </div>
           </div>
 
-          {firstWork && (
+          {featuredWork && (
             <button
-              className={`featured-frame featured-frame--${firstWork.format ?? "portrait"} glass-panel`}
+              className={`featured-frame featured-frame--${featuredWork.format ?? "portrait"} glass-panel`}
               type="button"
-              onClick={(event) => openWork(firstWork, event.currentTarget)}
-              aria-label={`${labels.openProject}: ${firstWork.title}`}
+              onClick={(event) => openWork(featuredWork, event.currentTarget)}
+              aria-label={`${labels.openProject}: ${featuredWork.title}`}
             >
-              <ProjectVisual work={firstWork} active={!dialogOpen} />
+              <ProjectVisual work={featuredWork} active={!dialogOpen} />
               <span className="featured-tag">
-                {firstWork.format === "landscape" ? labels.video : "Reel"}
-                {firstWork.duration ? ` · ${firstWork.duration}` : ""}
+                {featuredWork.format === "landscape" ? labels.video : "Reel"}
+                {featuredWork.duration ? ` · ${featuredWork.duration}` : ""}
               </span>
-              {firstWork.videoUrl ? <span className="featured-play">
+              {featuredWork.videoUrl ? <span className="featured-play">
                 <Play fill="currentColor" aria-hidden="true" />
               </span> : <span className="work-card-status">{labels.soon}</span>}
               <span className="featured-caption">
                 <small>{labels.featured}</small>
-                <strong>{firstWork.title}</strong>
+                <strong>{featuredWork.title}</strong>
               </span>
             </button>
           )}

@@ -35,7 +35,7 @@ export const siteContent = {
   headlineAccent: "держит внимание",
   intro:
     "Собираю горизонтальные и вертикальные видео. Выстраиваю темп, субтитры, звук и движение так, чтобы ролик хотелось досмотреть.",
-  aboutTitle: "Делаем монтаж проще для вас и понятнее для зрителя.",
+  aboutTitle: "Делаю монтаж проще для вас и понятнее для зрителя.",
   about:
     "Работаю с вертикальными и горизонтальными роликами любого жанра. Беру черновой материал и прохожу путь: от создания идеи до полноценной её реализации. Создаю видео с историей и с живым ритмом.",
   benefits: [
@@ -49,6 +49,7 @@ export const siteContent = {
   telegramLabel: "Освободить время от монтажа",
   telegramUrl: "https://t.me/viktor_ovn",
   email: "",
+  featuredWorkId: "work-04",
   metadataTitle: "Виктор Острецов | Видеомонтаж",
   metadataDescription:
     "Портфолио видеомонтажёра Виктора Острецова. Вертикальные и горизонтальные видео: от идеи до готового ролика.",
@@ -61,7 +62,7 @@ export const siteContent = {
     headlineAccent: "holds attention",
     intro:
       "I edit landscape and vertical videos, bringing pacing, captions, sound and motion together to keep people watching.",
-    aboutTitle: "Making editing easier for you and your videos clearer for your audience.",
+    aboutTitle: "I make editing easier for you and your videos clearer for your audience.",
     about:
       "I work with vertical and landscape videos across genres. I take raw footage all the way from the initial idea to a finished video, creating a clear story with a lively rhythm.",
     benefits: [
