@@ -102,26 +102,6 @@ export const works: PortfolioWork[] = [
     },
   },
   {
-    id: "work-02",
-    format: "portrait",
-    title: "Работа 02",
-    category: "Reels для соцсетей",
-    duration: "0:28",
-    description:
-      "Короткий клип, в котором склейки, движение кадра и звук работают как единый темп.",
-    details: ["Монтаж", "Динамика кадра", "Цвет", "Субтитры", "Саунд-дизайн"],
-    videoUrl: "/videos/first.mp4",
-    posterUrl: "/posters/first.png",
-    tone: "sand",
-    en: {
-      title: "Project 02",
-      category: "Social media reel",
-      description:
-        "A short clip where cuts, camera movement and sound come together in one cohesive rhythm.",
-      details: ["Editing", "Frame animation", "Color grading", "Captions", "Sound design"],
-    },
-  },
-  {
     id: "work-03",
     format: "landscape",
     title: "История метро",
